@@ -46,6 +46,11 @@ COPY ./kuzu /app/kuzu
 RUN --mount=type=cache,target=/root/.cache/uv \
 uv sync --extra debug --extra api --extra postgres --extra neo4j --extra llama-index --extra ollama --extra mistral --extra groq --extra anthropic --extra chromadb --frozen --no-dev --no-editable
 
+# FalkorDB graph adapter (external community package, not in pyproject/uv.lock).
+# Installed into the synced .venv so it is copied into the runtime stage below.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install "cognee-community-hybrid-adapter-falkor>=0.3.1,<1"
+
 FROM python:3.12-slim-bookworm
 
 RUN apt-get update && apt-get install -y \

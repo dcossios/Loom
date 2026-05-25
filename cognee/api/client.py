@@ -54,6 +54,20 @@ from cognee.modules.users.methods.get_authenticated_user import REQUIRE_AUTHENTI
 setup_logging()
 logger = get_logger()
 
+# Register the FalkorDB graph adapter when selected. The adapter ships in the
+# external `cognee-community-hybrid-adapter-falkor` package and self-registers
+# under the provider key "falkor" on import (calls use_graph_adapter/use_vector_adapter).
+if os.getenv("GRAPH_DATABASE_PROVIDER", "").lower() == "falkor":
+    try:
+        from cognee_community_hybrid_adapter_falkor import register  # noqa: F401
+
+        logger.info("FalkorDB graph adapter registered (provider=falkor)")
+    except ImportError:
+        logger.error(
+            "GRAPH_DATABASE_PROVIDER=falkor but 'cognee-community-hybrid-adapter-falkor' "
+            "is not installed. Install it to use FalkorDB."
+        )
+
 if os.getenv("ENV", "prod") == "prod":
     try:
         import sentry_sdk

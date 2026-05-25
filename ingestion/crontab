@@ -1,0 +1,11 @@
+SHELL=/bin/bash
+# Cron jobs source /app/cron.env (written by entrypoint.sh) because cron runs
+# with a minimal environment. Output goes to PID 1's stdout for `docker logs`.
+#
+# m h dom mon dow  command
+0 3 * * *   . /app/cron.env; cd /app/ingestion && python3 ingest_codebase.py >> /proc/1/fd/1 2>&1
+0 */6 * * * . /app/cron.env; cd /app/ingestion && python3 ingest_database.py >> /proc/1/fd/1 2>&1
+0 * * * *   . /app/cron.env; cd /app/ingestion && python3 ingest_linear.py   >> /proc/1/fd/1 2>&1
+15 * * * *  . /app/cron.env; cd /app/ingestion && python3 ingest_sentry.py   >> /proc/1/fd/1 2>&1
+30 * * * *  . /app/cron.env; cd /app/ingestion && python3 ingest_slack.py    >> /proc/1/fd/1 2>&1
+45 * * * *  . /app/cron.env; cd /app/ingestion && python3 ingest_gmail.py    >> /proc/1/fd/1 2>&1

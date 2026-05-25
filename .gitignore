@@ -192,6 +192,12 @@ cython_debug/
 cognee/data/
 cognee/cache/
 
+# Graphify (knowledge-graph skill artifacts)
+graphify-out/
+.graphify_*
+GRAPH_REPORT.md
+graph.html
+
 # Default cognee system directory, used in development
 .cognee_system/
 .data_storage/

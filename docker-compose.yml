@@ -2,6 +2,8 @@ services:
   cognee:
     container_name: cognee
     restart: always
+    depends_on:
+      - falkordb
     networks:
       - cognee-network
     build:
@@ -100,6 +102,41 @@ services:
     networks:
       - cognee-network
 
+  # FalkorDB - graph database (default graph backend for this deployment).
+  # Redis-protocol on 6379; FalkorDB Browser UI on 3000 (mapped to host 3001).
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: falkordb
+    restart: always
+    ports:
+      - "6379:6379"
+      - "3001:3000"
+    volumes:
+      - falkordb_data:/var/lib/falkordb/data
+    networks:
+      - cognee-network
+
+  # Ingestion sidecar - cron-driven jobs that pull from sources and push to the
+  # cognee HTTP API (single-writer model). Edit the repo volume + .env creds.
+  ingestion-cron:
+    container_name: ingestion-cron
+    restart: always
+    depends_on:
+      - cognee
+    build:
+      context: ./ingestion
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      - COGNEE_API_URL=http://cognee:8000
+      - REPO_PATH=/repos/flowly
+    volumes:
+      # Point this at the absolute path of the repo you want ingested (read-only).
+      - ./ingestion:/app/ingestion:ro
+      # - /ABS/PATH/to/flowly:/repos/flowly:ro
+    networks:
+      - cognee-network
+
   neo4j:
     image: neo4j:5.26  # Pinned to 5.x; compatible with neo4j Python driver >=5.28,<6
     container_name: neo4j
@@ -182,3 +219,4 @@ volumes:
   chromadb_data:
   postgres_data:
   redis_data:
+  falkordb_data:
