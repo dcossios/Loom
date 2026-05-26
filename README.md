@@ -1,312 +1,221 @@
-<div align="center">
-  <a href="https://github.com/topoteretes/cognee">
-    <img src="https://raw.githubusercontent.com/topoteretes/cognee/refs/heads/dev/assets/cognee-logo-transparent.png" alt="Cognee Logo" height="60">
-  </a>
+# Loom — Self-Improving Organizational Brain
 
-  <br />
+Loom is a self-hosted **corporate brain**: a single, queryable knowledge graph that captures your
+company's code, data, conversations and decisions so AI agents can recall context, connect facts,
+and act — and keep improving as new information flows in.
 
-  Cognee - The Brain behind your Agents
+It runs as a Docker stack built on [**Cognee**](https://github.com/topoteretes/cognee) (the ECL
+memory engine) with **FalkorDB** as the graph database. A cron sidecar continuously ingests your
+sources, and any MCP-capable agent (e.g. **Hermes Agent**) connects to the brain as a tool.
 
-  <p align="center">
-  <a href="https://www.youtube.com/watch?v=8hmqS2Y5RVQ&t=13s">Demo</a>
-  .
-  <a href="https://docs.cognee.ai/">Docs</a>
-  .
-  <a href="https://cognee.ai">Learn More</a>
-  ·
-  <a href="https://discord.gg/NQPKmU5CCg">Join Discord</a>
-  ·
-  <a href="https://www.reddit.com/r/AIMemory/">Join r/AIMemory</a>
-  .
-  <a href="https://github.com/topoteretes/cognee-community">Community Plugins & Add-ons</a>
-  </p>
+> Built on Cognee. See [`PRD.md`](PRD.md) for the product vision and [`CLAUDE.md`](CLAUDE.md) for
+> deep architecture notes.
 
+---
 
-  [![GitHub forks](https://img.shields.io/github/forks/topoteretes/cognee.svg?style=social&label=Fork&maxAge=2592000)](https://GitHub.com/topoteretes/cognee/network/)
-  [![GitHub stars](https://img.shields.io/github/stars/topoteretes/cognee.svg?style=social&label=Star&maxAge=2592000)](https://GitHub.com/topoteretes/cognee/stargazers/)
-  [![GitHub commits](https://badgen.net/github/commits/topoteretes/cognee)](https://GitHub.com/topoteretes/cognee/commit/)
-  [![GitHub tag](https://badgen.net/github/tag/topoteretes/cognee)](https://github.com/topoteretes/cognee/tags/)
-  [![Downloads](https://static.pepy.tech/badge/cognee)](https://pepy.tech/project/cognee)
-  [![License](https://img.shields.io/github/license/topoteretes/cognee?colorA=00C586&colorB=000000)](https://github.com/topoteretes/cognee/blob/main/LICENSE)
-  [![Contributors](https://img.shields.io/github/contributors/topoteretes/cognee?colorA=00C586&colorB=000000)](https://github.com/topoteretes/cognee/graphs/contributors)
-  <a href="https://github.com/sponsors/topoteretes"><img src="https://img.shields.io/badge/Sponsor-❤️-ff69b4.svg" alt="Sponsor"></a>
+## Architecture
 
-<p>
-  <a href="https://trendshift.io/repositories/13955" target="_blank" style="display:inline-block;">
-    <img src="https://trendshift.io/api/badge/repositories/13955" alt="topoteretes%2Fcognee | Trendshift" width="250" height="55" />
-  </a>
-</p>
+```
+                         ┌──────────────────────────────┐
+   sources               │            cognee            │  HTTP API :8000
+   ┌────────────┐  add   │  add → cognify → search       │  (single writer)
+   │ codebase   │ ─────► │                               │
+   │ database   │ files  │  Graph  = FalkorDB  (:6379)   │ ◄── cognee-mcp :8001
+   │ Linear     │ ─────► │  Vector = LanceDB   (local)   │     (MCP, client mode)
+   │ Sentry     │        │  Rel    = SQLite    (local)   │            ▲
+   │ Slack      │        └──────────────────────────────┘            │ MCP/HTTP
+   └────────────┘                  ▲                                  │
+        ▲                          │ POST /add + /cognify        ┌─────────┐
+        │ cron (extract→JSON)      │                             │ Hermes  │
+   ┌──────────────┐                │                             │ Agent   │
+   │ ingestion-cron├───────────────┘                             └─────────┘
+   └──────────────┘
+```
 
-Cognee gives AI agents a shared, improving memory of your data, decisions, and workflows so they can recall, connect, and act with context.
+- **Single-writer model**: only the `cognee` service writes to the stores. The ingestion sidecar
+  and the MCP server push everything through the cognee HTTP API.
+- **Three memories** (the self-improving-agent pattern): *factual* = code + database + SaaS data
+  (this repo), *behavioral* + *procedural* = the agent's own instructions and skills (Hermes side).
 
-  <p align="center">
-  🌐 Available Languages
-  :
-  <!-- Keep these links. Translations will automatically update with the README. -->
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=de">Deutsch</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=es">Español</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=fr">Français</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=ja">日本語</a> |
-  <a href="README_ko.md">한국어</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=pt">Português</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=ru">Русский</a> |
-  <a href="https://www.readme-i18n.com/topoteretes/cognee?lang=zh">中文</a>
-  </p>
+---
 
+## Prerequisites
 
-<div style="text-align: center">
-  <img src="https://raw.githubusercontent.com/topoteretes/cognee/refs/heads/main/assets/cognee_benefits.png" alt="Why cognee?" width="80%" />
-</div>
-</div>
+- **Docker** + **Docker Compose**
+- An **LLM API key** (OpenAI by default) — needed for `cognify` and embeddings. The stack boots
+  without it, but graph construction (`cognify`) fails until it is set.
 
+---
 
-
-
-## About Cognee
-
-Cognee is an open-source memory control plane for your Agents that lets you ingest data in any format or structure and continuously learns to provide the right context. It combines embeddings, graphs and cognitive science approaches to make your documents both searchable by meaning and connected by relationships as they change and evolve.
-
-
-
-:star: _Help us reach more developers and grow the cognee community. Star this repo!_
-
-:books: _Check our detailed [documentation](https://docs.cognee.ai/getting-started/installation#environment-configuration) for setup and configuration._
-
-:crab: _Available as a plugin for your OpenClaw — [cognee-openclaw](https://www.npmjs.com/package/@cognee/cognee-openclaw)_
-
-✴️ _Available as a plugin for your Claude Code — [claude-code-plugin](https://github.com/topoteretes/cognee-integrations/tree/main/integrations/claude-code)_
-
-
-
-### Why use Cognee:
-
-- Easily Build Company Brain - unify data from various sources in one place and enable Agents with your domain knowledge
-- Knowledge infrastructure — unified ingestion, graph/vector search, runs locally, ontology grounding, multimodal
-- Persistent and Learning Agents - learn from feedback, context management, cross-agent knowledge sharing
-- Reliable and Trustworthy Agents - agentic user/tenant isolation, traceability, OTEL collector, audit traits
-
-### Product Features
-
-<p align="center">
-  <img src="assets/cognee_products.png" alt="Cognee Products" width="80%" />
-</p>
-
-## Basic Usage & Feature Guide
-
-To learn more, [check out this short, end-to-end Colab walkthrough](https://colab.research.google.com/drive/1HRrzIvzcbwrESVfX76wJLKmtIg00SUga?usp=sharing) of Cognee's core features.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1HRrzIvzcbwrESVfX76wJLKmtIg00SUga?usp=sharing)
-
-## Quickstart
-
-Let’s try Cognee in just a few lines of code.
-
-### Prerequisites
-
-- Python 3.10 to 3.14
-
-### Step 1: Install Cognee
-
-You can install Cognee with **pip**, **poetry**, **uv**, or your preferred Python package manager.
+## Install & Run
 
 ```bash
-uv pip install cognee
+git clone https://github.com/dcossios/Loom.git
+cd Loom
+
+# Create your env file and set the LLM key (other creds can be added later)
+cp .env.template .env
+#   edit .env -> LLM_API_KEY="sk-..."
+
+docker compose up -d --build
 ```
 
-### Step 2: Configure the LLM
-```python
-import os
-os.environ["LLM_API_KEY"] = "YOUR OPENAI_API_KEY"
-```
-Alternatively, create a `.env` file using our [template](https://github.com/topoteretes/cognee/blob/main/.env.template).
+This starts three services:
 
-To integrate other LLM providers, see our [LLM Provider Documentation](https://docs.cognee.ai/setup-configuration/llm-providers).
+| Service          | Port(s)                | Role                                   |
+|------------------|------------------------|----------------------------------------|
+| `cognee`         | `8000`                 | HTTP API (add / cognify / search)      |
+| `falkordb`       | `6379`, UI `3001`      | Graph database (+ FalkorDB Browser)    |
+| `ingestion-cron` | —                      | Cron sidecar that feeds the brain      |
 
-### Step 3: Run the Pipeline
-
-Cognee's API gives you four operations — `remember`, `recall`, `forget`, and `improve`:
-
-```python
-import cognee
-import asyncio
-
-
-async def main():
-    # Store permanently in the knowledge graph (runs add + cognify + improve)
-    await cognee.remember("Cognee turns documents into AI memory.")
-
-    # Store in session memory (fast cache, syncs to graph in background)
-    await cognee.remember("User prefers detailed explanations.", session_id="chat_1")
-
-    # Query with auto-routing (picks best search strategy automatically)
-    results = await cognee.recall("What does Cognee do?")
-    for result in results:
-        print(result)
-
-    # Query session memory first, fall through to graph if needed
-    results = await cognee.recall("What does the user prefer?", session_id="chat_1")
-    for result in results:
-        print(result)
-
-    # Delete when done
-    await cognee.forget(dataset="main_dataset")
-
-
-if __name__ == '__main__':
-    asyncio.run(main())
-
-```
-
-### Use the Cognee CLI
+Verify it's up:
 
 ```bash
-cognee-cli remember "Cognee turns documents into AI memory."
-
-cognee-cli recall "What does Cognee do?"
-
-cognee-cli forget --all
+curl -f http://localhost:8000/health
+# {"status":"ready","health":"healthy",...}
 ```
 
-To open the local UI, run:
-```bash
-cognee-cli -ui
+Stop with `docker compose down`. Default stores (LanceDB + SQLite) and the FalkorDB volume persist
+between restarts.
+
+---
+
+## Ingest your data (factual memory)
+
+The `ingestion-cron` sidecar pulls each source, uploads it to the cognee API, and runs `cognify`.
+Configure sources in `.env`, then either wait for the cron schedule or trigger an immediate pass by
+setting `RUN_ON_START=true` on the `ingestion-cron` service and restarting it.
+
+### Codebase
+Mount your repo (read-only) into the sidecar and point `REPO_PATH` at it. In `docker-compose.yml`,
+under the `ingestion-cron` service, uncomment and edit:
+
+```yaml
+    volumes:
+      - /ABS/PATH/to/your/repo:/repos/flowly:ro
 ```
 
-## Use with AI Agents
+Source files are ingested as text and cognified into dataset `flowly_code`.
 
-### Claude Code
-
-Install the [Cognee memory plugin](https://github.com/topoteretes/cognee-integrations/tree/main/integrations/claude-code) to give Claude Code persistent memory across sessions. The plugin automatically captures tool calls into session memory via hooks and syncs to the permanent knowledge graph at session end.
-
-**Setup:**
-
-```bash
-# Install cognee
-pip install cognee
-
-# Configure
-export LLM_API_KEY="your-openai-key"
-
-# Clone the plugin
-git clone https://github.com/topoteretes/cognee-integrations.git
-
-# Enable it (add to ~/.zshrc for permanent use)
-claude --plugin-dir ./cognee-integrations/integrations/claude-code
-```
-
-Or connect to Cognee Cloud instead of running locally:
+### Database (read-only)
+Use a **read-only** DB user — only `SELECT`s are issued.
 
 ```bash
-export COGNEE_SERVICE_URL="https://your-instance.cognee.ai"
-export COGNEE_API_KEY="ck_..."
+DB_INGEST_URL=postgresql://readonly:pass@host.docker.internal:5432/yourdb
+DB_INGEST_TABLES=users,subscriptions,tickets   # or set DB_INGEST_QUERY="SELECT ..."
 ```
 
-The plugin hooks into Claude Code's lifecycle — `SessionStart` initializes memory, `PostToolUse` captures actions, `UserPromptSubmit` injects relevant context, `PreCompact` preserves memory across context resets, and `SessionEnd` bridges session data into the permanent graph.
+### SaaS connectors (Linear / Sentry / Slack)
+Set the token(s); a connector with no token simply skips.
 
-### Connect to Cognee Cloud
+| Source | Env vars | Where to get the token |
+|--------|----------|------------------------|
+| **Linear** | `LINEAR_API_KEY` | Settings → Security & access → Personal API keys |
+| **Sentry** | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Settings → Auth Tokens (scopes `project:read`, `event:read`) |
+| **Slack**  | `SLACK_BOT_TOKEN`, `SLACK_CHANNELS` | api.slack.com/apps → bot scopes `channels:history,channels:read,groups:history,users:read` → install → **invite the bot to the channels** |
 
-Point any Python agent at a managed Cognee instance — all SDK calls route to the cloud:
+> Gmail ships as a stub (`ingestion/ingest_gmail.py`) — fill in `fetch_records()` to enable it.
 
-```python
-import cognee
-
-await cognee.serve(url="https://your-instance.cognee.ai", api_key="ck_...")
-
-await cognee.remember("important context")
-results = await cognee.recall("what happened?")
-
-await cognee.disconnect()
+### Manual / one-off
+```bash
+curl -F 'data=@./notes.md' -F 'datasetName=docs' http://localhost:8000/api/v1/add
+curl -X POST http://localhost:8000/api/v1/cognify \
+  -H 'Content-Type: application/json' -d '{"datasets":["docs"]}'
 ```
 
-## Examples
+---
 
-Browse more examples in the [`examples/`](examples/) folder — demos, guides, custom pipelines, and database configurations.
+## Query the brain
 
-**Use Case 1 — Customer Support Agent**
-
-```python
-Goal: Resolve customer issues using their personal data across finance, support, and product history.
-
-User: "My invoice looks wrong and the issue is still not resolved."
-
-Cognee tracks: past interactions, failed actions, resolved cases, product history
-
-# Agent response:
-Agent: "I found 2 similar billing cases resolved last month.
-        The issue was caused by a sync delay between payment
-        and invoice systems — a fix was applied on your account."
-
-# What happens under the hood:
-- Unifies data sources from various company channels
-- Reconstructs the interaction timeline and tracks outcomes
-- Retrieves similar resolved cases
-- Maps to the best resolution strategy
-- Updates memory after execution so the agent never repeats the same mistake
+```bash
+curl -X POST http://localhost:8000/api/v1/search \
+  -H 'Content-Type: application/json' \
+  -d '{"search_type":"GRAPH_COMPLETION","query":"What does the auth module do?"}'
 ```
 
-**Use Case 2 — Expert Knowledge Distillation (SQL Copilot)**
+Other useful endpoints: `POST /api/v1/recall` (auto-routed query), `POST /api/v1/remember`
+(store + cognify), `POST /api/v1/improve` (feedback loop). Search types include `GRAPH_COMPLETION`,
+`RAG_COMPLETION`, `CHUNKS`, `SUMMARIES`, `CYPHER`, `TEMPORAL` and more (see `CLAUDE.md`).
 
-```python
-Goal: Help junior analysts solve tasks by reusing expert-level queries, patterns, and reasoning.
+Inspect the graph directly in the **FalkorDB Browser** at <http://localhost:3001>, or:
 
-User: "How do I calculate customer retention for this dataset?"
-
-Cognee tracks: expert SQL queries, workflow patterns, schema structures, successful implementations
-
-# Agent response:
-Agent: "Here's how senior analysts solved a similar retention query.
-        Cognee matched your schema to a known structure and adapted
-        the expert's logic to fit your dataset."
-
-# What happens under the hood:
-- Extracts and stores patterns from expert SQL queries and workflows
-- Maps the current schema to previously seen structures
-- Retrieves similar tasks and their successful implementations
-- Adapts expert reasoning to the current context
-- Updates memory with new successful patterns so junior analysts perform at near-expert level
+```bash
+docker compose exec falkordb redis-cli GRAPH.LIST
 ```
 
-## Deploy Cognee
+---
 
-Use [Cognee Cloud](https://www.cognee.ai) for a fully managed experience, or self-host with one of the 1-click deployment configurations below.
+## Connect Hermes Agent (MCP over HTTP)
 
-| Platform | Best For | Command |
-|----------|----------|---------|
-| **Cognee Cloud** | Managed service, no infrastructure to maintain | [Sign up](https://www.cognee.ai) or `await cognee.serve()` |
-| **Modal** | Serverless, auto-scaling, GPU workloads | `bash distributed/deploy/modal-deploy.sh` |
-| **Railway** | Simplest PaaS, native Postgres | `railway init && railway up` |
-| **Fly.io** | Edge deployment, persistent volumes | `bash distributed/deploy/fly-deploy.sh` |
-| **Render** | Simple PaaS with managed Postgres | Deploy to Render button |
-| **Daytona** | Cloud sandboxes (SDK or CLI) | See `distributed/deploy/daytona_sandbox.py` |
+Loom exposes its tools through Cognee's **MCP server**, run in *client mode* so every write still
+goes through the single cognee writer. [Hermes Agent](https://hermes-agent.nousresearch.com/) keeps
+its own personal memory and skills and calls Loom as a shared source of truth — it does **not**
+replace Hermes' native memory.
 
-See the [`distributed/`](distributed/) folder for deploy scripts, worker configurations, and additional details.
+### 1. Start the MCP server
 
-## Latest News
-
-[![Watch Demo](https://img.youtube.com/vi/8hmqS2Y5RVQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=8hmqS2Y5RVQ&t=13s)
-
-
-## Community & Support
-
-### Contributing
-We welcome contributions from the community! Your input helps make Cognee better for everyone. See [`CONTRIBUTING.md`](CONTRIBUTING.md) to get started.
-
-### Code of Conduct
-
-We're committed to fostering an inclusive and respectful community. Read our [Code of Conduct](https://github.com/topoteretes/cognee/blob/main/CODE_OF_CONDUCT.md) for guidelines.
-
-## Research & Citation
-
-We recently published a research paper on optimizing knowledge graphs for LLM reasoning:
-
-```bibtex
-@misc{markovic2025optimizinginterfaceknowledgegraphs,
-      title={Optimizing the Interface Between Knowledge Graphs and LLMs for Complex Reasoning},
-      author={Vasilije Markovic and Lazar Obradovic and Laszlo Hajdu and Jovan Pavlovic},
-      year={2025},
-      eprint={2505.24478},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2505.24478},
-}
+```bash
+docker compose --profile mcp up -d --build cognee-mcp
 ```
+
+This serves MCP at **`http://<HOST>:8001/mcp`** and proxies to the cognee API
+(`API_URL=http://cognee:8000`). Check the logs show `API mode enabled: http://cognee:8000`.
+
+### 2. Install Hermes Agent
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+hermes setup
+```
+
+### 3. Point Hermes at Loom
+
+Edit `~/.hermes/config.yaml` and add an MCP server entry (use the host's IP/domain if Hermes runs
+on a different machine than the Docker stack):
+
+```yaml
+mcp_servers:
+  cognee:
+    url: "http://localhost:8001/mcp"
+    tools:
+      include: [search, recall, remember, save_interaction, cognify, list_data]
+```
+
+Then reload from a Hermes chat:
+
+```
+/reload-mcp
+```
+
+Now Hermes can `recall`/`search` your org brain and `remember`/`save_interaction` back into it.
+Verify by asking Hermes to recall something you ingested.
+
+> **Tip:** to keep the brain read-mostly for the agent, narrow `tools.include` to
+> `[search, recall, list_data]`.
+
+---
+
+## Configuration reference
+
+Key variables in `.env` (full list and provider options in `.env.template` and `CLAUDE.md`):
+
+| Variable | Purpose |
+|----------|---------|
+| `LLM_API_KEY`, `LLM_MODEL` | LLM for cognify/search (default `openai/gpt-4o-mini`) |
+| `GRAPH_DATABASE_PROVIDER=falkor` | Graph backend (FalkorDB community adapter) |
+| `GRAPH_DATABASE_URL=falkordb`, `GRAPH_DATABASE_PORT=6379` | FalkorDB connection |
+| `VECTOR_DB_PROVIDER=lancedb`, `DB_PROVIDER=sqlite` | Local vector + relational stores |
+| `ENABLE_BACKEND_ACCESS_CONTROL=False`, `REQUIRE_AUTHENTICATION=False` | Single-user/single-writer posture |
+| `REPO_PATH`, `DB_INGEST_URL`, `LINEAR_API_KEY`, `SENTRY_AUTH_TOKEN`, `SLACK_BOT_TOKEN` | Ingestion sources |
+
+---
+
+## Resources
+
+- Cognee docs: <https://docs.cognee.ai/>
+- Community plugins & DB adapters (incl. FalkorDB): <https://github.com/topoteretes/cognee-community>
+- Hermes Agent docs: <https://hermes-agent.nousresearch.com/docs>
+
+## License
+
+Apache-2.0 (inherited from Cognee). See [`LICENSE`](LICENSE).

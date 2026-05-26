@@ -44,6 +44,8 @@ services:
     container_name: cognee-mcp
     profiles:
       - mcp
+    depends_on:
+      - cognee
     networks:
       - cognee-network
     build:
@@ -59,7 +61,12 @@ services:
       - DEBUG=false # Change to true if debugging
       - ENVIRONMENT=local
       - LOG_LEVEL=INFO
-      - TRANSPORT_MODE=sse
+      # Streamable-HTTP transport so agents (e.g. Hermes) connect via a URL.
+      - TRANSPORT_MODE=http
+      - HTTP_PORT=8000
+      # Client mode: proxy all operations to the cognee API so it stays the
+      # single writer of SQLite/LanceDB/FalkorDB.
+      - API_URL=http://cognee:8000
       # Database configuration - should match the main cognee service
       - DB_PROVIDER=${DB_PROVIDER:-sqlite}
       - DB_HOST=${DB_HOST:-host.docker.internal}
@@ -73,8 +80,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000" # MCP port
-      - "5678:5678" # MCP debugger port
+      - "8001:8000" # MCP HTTP endpoint (host 8001 -> container 8000)
     deploy:
       resources:
         limits:
